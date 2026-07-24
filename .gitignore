@@ -1,0 +1,26 @@
+# Python virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Dataset caches (MNIST/CIFAR/IMDB are downloaded to ~/.keras at runtime)
+# and any large local caches
+*.npz.tmp
+
+# Note: figure PDFs in figures/, the compiled report in Doc/, and the CBOW
+# corpus text are deliverables and are intentionally NOT ignored (we only
+# ignore LaTeX artifacts by extension and the virtual environment).
