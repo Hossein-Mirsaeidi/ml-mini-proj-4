@@ -225,8 +225,9 @@ is an MLP with two hidden layers of ten ReLU units and a linear output, trained 
 MSE for up to 200 epochs with a 10\% validation split.
 
 Figure~\ref{fig:p2-baseline} shows the baseline learning curves and the true-versus-predicted
-scatter on the test set. The baseline reaches a test MSE of \PH{baseline test MSE} in
-\PH{baseline time}~s.
+scatter on the test set. The baseline reaches a test MSE of about $820$ (in the original
+units) after roughly $25$~s of training; the scatter plot lies close to the diagonal, so the
+network recovers the cubic surface well.
 
 \begin{figure}[H]
 \centering
@@ -248,9 +249,9 @@ Table~\ref{tab:p2} and Figure~\ref{fig:p2-comp} summarise the comparison.
 \toprule
 Strategy & Epochs & Training time (s) & Test MSE (original units)\\
 \midrule
-Baseline (200 epochs) & 200 & \PH{t} & \PH{mse}\\
-Early stopping (patience 10) & \PH{stop epoch} & \PH{t} & \PH{mse}\\
-Dropout ($p=0.5$, 200 epochs) & 200 & \PH{t} & \PH{mse}\\
+Baseline (200 epochs) & 200 & 25.4 & 820.4\\
+Early stopping (patience 10) & 200 (never triggered) & 24.6 & 820.4\\
+Dropout ($p=0.5$, 200 epochs) & 200 & 24.0 & 27{,}191.9\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -262,11 +263,15 @@ Dropout ($p=0.5$, 200 epochs) & 200 & \PH{t} & \PH{mse}\\
 \label{fig:p2-comp}
 \end{figure}
 
-\paragraph{Recommendation.} Early stopping halts well before 200 epochs, so it is the
-cheapest option, and it reaches a test MSE close to or better than the fully trained
-baseline. Dropout at $p=0.5$ is too aggressive for a network with only ten units per layer:
-it adds a lot of noise, needs the whole budget, and ends with a higher test MSE. For this
-regression task I therefore recommend \best{early stopping}.
+\paragraph{Recommendation.} The added noise here ($\varepsilon\in[-1,1]$) is tiny compared to
+the signal, which reaches about $\pm10^3$, so the model does not overfit within 200 epochs:
+the validation loss keeps decreasing and \emph{early stopping never triggers}. Its epoch
+count, training time and test MSE therefore match the baseline exactly. Dropout at $p=0.5$,
+by contrast, is far too aggressive for a network with only ten units per layer; it removes so
+much capacity that the test MSE jumps from about $820$ to about $27{,}000$. For this low-noise
+regression I therefore recommend \best{early stopping} as a safe, almost cost-free safeguard
+-- it simply does nothing when there is no overfitting to catch -- whereas heavy dropout is
+clearly harmful.
 
 % ================================================================= PART 3
 \section{Optimization for Training Deep Networks}
@@ -302,7 +307,8 @@ statistics stable and give the gradient a shorter path back to the early layers.
 I load MNIST, scale the pixels to $[0,1]$, one-hot encode the labels, and train two identical
 $784\to128\to64\to10$ MLPs for 20 epochs: one with SGD (learning rate 0.01, momentum 0.9)
 and one with Adam (defaults). Figure~\ref{fig:p3} overlays the learning curves. The final
-test accuracies are \PH{SGD acc} for SGD and \PH{Adam acc} for Adam.
+test accuracies are $97.68\%$ for SGD and $97.51\%$ for Adam (training took $23.2$~s and
+$18.6$~s respectively).
 
 \begin{figure}[H]
 \centering
@@ -312,8 +318,10 @@ test accuracies are \PH{SGD acc} for SGD and \PH{Adam acc} for Adam.
 \end{figure}
 
 \paragraph{Comment.} Adam reaches a low loss within the first few epochs, while SGD climbs
-more gradually. Both converge to a similar final accuracy on this easy task, but Adam is
-faster and smoother early on, which illustrates the benefit of its adaptive step sizes.
+more gradually (Figure~\ref{fig:p3}). On this easy task the two finish very close
+($97.68\%$ vs.\ $97.51\%$), and here SGD with momentum even ends a little higher. This matches
+the usual trade-off: Adam converges faster, but a well-tuned SGD with momentum can match or
+slightly beat its final accuracy.
 
 % ================================================================= PART 4
 \section{CNN vs. LSTM on Benchmark Datasets}
@@ -324,7 +332,7 @@ and one-hot encode the ten classes. The network has one convolutional block
 (Conv2D~32, Conv2D~64, MaxPooling, Dropout~0.25), then Flatten $\to$ Dense(512)
 $\to$ Dropout(0.5) $\to$ Dense(10, softmax). It is trained with Adam and categorical
 cross-entropy for 50 epochs (batch 64, 10\% validation). The final test accuracy is
-\PH{CNN test acc} and training took \PH{CNN time}~min.
+$71.8\%$ and training took about $6.7$~min, with a peak GPU memory of only $0.89$~GB.
 
 \begin{figure}[H]
 \centering
@@ -354,16 +362,22 @@ cross-entropy for 50 epochs (batch 64, 10\% validation). The final test accuracy
 \label{fig:p4-cnn2}
 \end{figure}
 
-\paragraph{Observations.} \PH{comment on which classes are confused, e.g. cat/dog, and the
-per-class AUC values}.
+\paragraph{Observations.} The errors concentrate among visually similar classes: the most
+frequent mistakes are cat read as dog (207 images), bird as deer (133), and airplane as ship
+(120). The ROC curves agree -- the animal classes have the lowest one-vs-rest AUC (cat and
+bird about $0.91$) while rigid man-made objects score highest (automobile, ship, and truck
+about $0.98$), and the micro-average AUC is $0.960$. The learning curves make the overfitting
+plain: training accuracy climbs above $0.95$ while validation accuracy stalls near $0.73$ and
+the validation loss rises steadily after a few epochs, which is why the test accuracy settles
+at a moderate $71.8\%$.
 
 \subsection{LSTM on IMDB sentiment}
 Each review is an integer sequence over the 20{,}000 most frequent words, with rarer words
 mapped to \texttt{<UNK>}; sequences are padded/truncated to 200 tokens (zeros prepended,
 extra words at the end dropped). The model is Embedding(20000,128) $\to$ LSTM(128) $\to$
 Dense(64, ReLU) $\to$ Dropout(0.5) $\to$ Dense(1, sigmoid), trained with Adam and binary
-cross-entropy for 20 epochs. On the test set I obtain accuracy \PH{acc}, precision
-\PH{prec}, recall \PH{rec}, and F1 \PH{f1}.
+cross-entropy for 20 epochs. On the test set I obtain accuracy $81.2\%$, precision $0.824$,
+recall $0.794$, and $\text{F1}=0.809$ (training took about $2.4$~min).
 
 \begin{figure}[H]
 \centering
@@ -372,8 +386,13 @@ cross-entropy for 20 epochs. On the test set I obtain accuracy \PH{acc}, precisi
 \label{fig:p4-lstm}
 \end{figure}
 
-\paragraph{Observations.} \PH{comment on overfitting after a few epochs and on the kinds of
-reviews the model gets wrong, e.g. sarcasm or mixed sentiment}.
+\paragraph{Observations.} The model overfits quickly: after only one or two epochs the
+training accuracy approaches $100\%$ while the validation loss begins to climb (from about
+$0.37$ to well above $1.0$), even though validation accuracy stays around $0.82$--$0.85$. The
+mistakes are mostly reviews with mixed or ironic sentiment -- a largely negative review that
+ends on a warm note, or sarcasm and praise-by-comparison -- where a single averaged sequence
+state struggles to weigh the decisive words. Stopping earlier or regularizing more strongly
+would likely generalise a little better.
 
 % ================================================================= PART 5
 \section{Continuous Bag-of-Words Word Embeddings}
@@ -385,8 +404,12 @@ through a softmax over the vocabulary, trained with Adam and cross-entropy.
 
 \subsection{Direct 2-D embedding}
 I first learn embeddings of dimension $d=2$ for at least 300 epochs and plot them directly
-(Figure~\ref{fig:p5-2d}). \PH{describe the clusters you see, e.g. network / neural / layer
-grouped together, learning / training / data grouped together}.
+(Figure~\ref{fig:p5-2d}). With only 454 distinct words and about a thousand training pairs,
+the two-dimensional space is very tight and the neighbourhoods are noisy. Some domain words
+still drift together -- the nearest words to \emph{learning} include \emph{deep} and
+\emph{loss}, and those of \emph{network} include \emph{algorithm} -- but many associations
+are spurious, and rare words scatter around the edges. The clusters are therefore only
+loosely formed, which is expected for such a small corpus squeezed into two axes.
 
 \begin{figure}[H]
 \centering
@@ -411,18 +434,25 @@ $E_{10}\in\mathbb{R}^{V\times10}$, and project it to two dimensions with PCA
 the related-word groups are usually a little cleaner and better spread than in the direct
 2-D model, even though the overall layout is similar. The direct 2-D model must pack
 everything into two axes, which can merge unrelated words, whereas PCA of the richer 10-D
-space keeps the two most informative directions. \PH{note any concrete similarities or
-differences you observe between the two plots}. Both are limited by the small corpus.
+space keeps the two most informative directions. Concretely, the 10-D embeddings give much
+cleaner neighbours: the closest words to \emph{network} become \emph{networks} and
+\emph{convolutional}, and the closest to \emph{learning} become \emph{algorithm} and
+\emph{transfer} -- associations that are far more sensible than the noisy 2-D neighbours. The
+10-D training loss also drops much lower ($1.79$ vs.\ $4.62$), confirming that ten dimensions
+capture the co-occurrence structure better before PCA compresses them for display. Both
+models, however, remain limited by the small corpus.
 
 % ================================================================= DISCUSSION
 \section{Comprehensive Discussion}
 
-\paragraph{Early stopping and dropout vs.\ the bias--variance trade-off.} Both methods
-reduce variance at the price of a little bias. Early stopping stops the optimizer before it
-fits the noise in the training set, so it lowers variance while barely raising bias, which
-suits a small low-capacity model. Dropout at $p=0.5$ removes so much capacity from a
-ten-unit network that it adds real bias (underfitting), which is why its test error is
-higher here.
+\paragraph{Early stopping and dropout vs.\ the bias--variance trade-off.} Both methods aim to
+reduce variance at the price of a little bias. In our low-noise regression the model hardly
+overfits, so early stopping never had to fire: it left bias and variance essentially
+unchanged and simply matched the baseline. Dropout at $p=0.5$, in contrast, removed so much
+capacity from the ten-unit network that it added a large amount of bias (underfitting), which
+is exactly why its test error was far higher. The lesson is that these regularizers only help
+when there is variance to remove; applied to a model that already fits the signal well, heavy
+dropout mostly hurts.
 
 \paragraph{Why Adam often converges faster than SGD.} Adam rescales each parameter's step by
 a running estimate of the gradient magnitude, so it makes fast progress even on a poorly
