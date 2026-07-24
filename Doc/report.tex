@@ -404,7 +404,8 @@ through a softmax over the vocabulary, trained with Adam and cross-entropy.
 
 \subsection{Direct 2-D embedding}
 I first learn embeddings of dimension $d=2$ for at least 300 epochs and plot them directly
-(Figure~\ref{fig:p5-2d}). With only 454 distinct words and about a thousand training pairs,
+(Figure~\ref{fig:p5-2d}); all 454 words are plotted as points, and for readability only the
+most frequent ones carry a text label. With only 454 distinct words and about a thousand training pairs,
 the two-dimensional space is very tight and the neighbourhoods are noisy. Some domain words
 still drift together -- the nearest words to \emph{learning} include \emph{deep} and
 \emph{loss}, and those of \emph{network} include \emph{algorithm} -- but many associations
