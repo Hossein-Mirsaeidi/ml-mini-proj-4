@@ -107,25 +107,90 @@ z^{[3]} &= W^{[3]}\mathbf{a}^{[2]}+b^{[3]}, &
 where $\mathrm{ReLU}(z)=\max(0,z)$ acts element-wise and the output neuron is linear.
 
 \subsection{Backpropagation for the first layer}
-With the squared loss $\mathcal{L}=\tfrac12(y-\hat{y})^2$ I define the local gradients
-(deltas) and push them backwards through the network. Because the output is linear,
-\begin{align}
-\delta^{[3]} &= \frac{\partial\mathcal{L}}{\partial z^{[3]}} = -(y-\hat{y}),\\
-\boldsymbol{\delta}^{[2]} &= \big(W^{[3]\top}\delta^{[3]}\big)\odot
-      \mathrm{ReLU}'\!\big(\mathbf{z}^{[2]}\big),\\
-\boldsymbol{\delta}^{[1]} &= \big(W^{[2]\top}\boldsymbol{\delta}^{[2]}\big)\odot
-      \mathrm{ReLU}'\!\big(\mathbf{z}^{[1]}\big),
-\end{align}
-where $\mathrm{ReLU}'(z)=\mathbf{1}[z>0]$ and $\odot$ is the element-wise product. The
-gradient with respect to the first-layer parameters and the corresponding gradient-descent
-update with learning rate $\eta$ are
+The loss is $\mathcal{L}=\tfrac12(y-\hat{y})^2$. A first-layer weight $W^{[1]}_{jk}$
+influences the loss only through the chain
+\[
+\mathcal{L}\ \leftarrow\ \hat{y}\ \leftarrow\ z^{[3]}\ \leftarrow\ \mathbf{a}^{[2]}
+\ \leftarrow\ \mathbf{z}^{[2]}\ \leftarrow\ \mathbf{a}^{[1]}\ \leftarrow\ z^{[1]}_j
+\ \leftarrow\ W^{[1]}_{jk},
+\]
+so the derivation proceeds by accumulating the gradient down to each pre-activation
+--- the local error $\delta$ --- and only then attaching the local derivative of that
+pre-activation with respect to the parameter.
+
+\paragraph{Step 1: output layer.} Since $\hat{y}=z^{[3]}$ (linear output),
 \begin{equation}
-\frac{\partial\mathcal{L}}{\partial W^{[1]}}=\boldsymbol{\delta}^{[1]}\mathbf{x}^\top,
-\qquad
-\frac{\partial\mathcal{L}}{\partial \mathbf{b}^{[1]}}=\boldsymbol{\delta}^{[1]},
-\qquad
-W^{[1]}\leftarrow W^{[1]}-\eta\,\boldsymbol{\delta}^{[1]}\mathbf{x}^\top .
+\delta^{[3]}\equiv\frac{\partial\mathcal{L}}{\partial z^{[3]}}
+=\frac{\partial\mathcal{L}}{\partial\hat y}\cdot\frac{\partial\hat y}{\partial z^{[3]}}
+=-(y-\hat{y})\cdot 1=\hat{y}-y .
 \end{equation}
+This single scalar is the only place the training target enters the backward pass.
+
+\paragraph{Step 2: second hidden layer.} $z^{[3]}=\sum_{i}W^{[3]}_{1i}a^{[2]}_i+b^{[3]}$
+gives $\partial z^{[3]}/\partial a^{[2]}_i=W^{[3]}_{1i}$, and $a^{[2]}_i=\mathrm{ReLU}(z^{[2]}_i)$
+gives $\partial a^{[2]}_i/\partial z^{[2]}_i=\mathrm{ReLU}'(z^{[2]}_i)$. Hence, componentwise,
+\begin{equation}
+\delta^{[2]}_i=\frac{\partial\mathcal{L}}{\partial z^{[2]}_i}
+=\delta^{[3]}\,W^{[3]}_{1i}\,\mathrm{ReLU}'\!\big(z^{[2]}_i\big),
+\qquad\text{i.e.}\qquad
+\boldsymbol{\delta}^{[2]} = \big(W^{[3]\top}\delta^{[3]}\big)\odot
+      \mathrm{ReLU}'\!\big(\mathbf{z}^{[2]}\big).
+\end{equation}
+
+\paragraph{Step 3: first hidden layer.} Now $a^{[1]}_j$ feeds \emph{every} unit of layer 2,
+so the chain rule sums over those paths: $\partial z^{[2]}_i/\partial a^{[1]}_j=W^{[2]}_{ij}$
+and therefore
+\begin{equation}
+\delta^{[1]}_j=\frac{\partial\mathcal{L}}{\partial z^{[1]}_j}
+=\Big(\sum_{i=1}^{2}\delta^{[2]}_i\,W^{[2]}_{ij}\Big)\,\mathrm{ReLU}'\!\big(z^{[1]}_j\big),
+\qquad\text{i.e.}\qquad
+\boldsymbol{\delta}^{[1]} = \big(W^{[2]\top}\boldsymbol{\delta}^{[2]}\big)\odot
+      \mathrm{ReLU}'\!\big(\mathbf{z}^{[1]}\big),
+\end{equation}
+with $\mathrm{ReLU}'(z)=\mathbf{1}[z>0]$ and $\odot$ the element-wise product.
+
+\paragraph{Step 4: from $\boldsymbol{\delta}^{[1]}$ to the parameters.} The last local factor
+is read off $z^{[1]}_j=\sum_k W^{[1]}_{jk}x_k+b^{[1]}_j$, namely
+$\partial z^{[1]}_j/\partial W^{[1]}_{jk}=x_k$ and $\partial z^{[1]}_j/\partial b^{[1]}_j=1$:
+\begin{equation}
+\frac{\partial\mathcal{L}}{\partial W^{[1]}_{jk}}=\delta^{[1]}_j x_k,
+\qquad
+\frac{\partial\mathcal{L}}{\partial b^{[1]}_j}=\delta^{[1]}_j,
+\qquad\text{in matrix form}\qquad
+\frac{\partial\mathcal{L}}{\partial W^{[1]}}=\boldsymbol{\delta}^{[1]}\mathbf{x}^\top,
+\quad
+\frac{\partial\mathcal{L}}{\partial \mathbf{b}^{[1]}}=\boldsymbol{\delta}^{[1]}.
+\end{equation}
+Written out in full, the gradient for a single first-layer weight is the product of five
+factors,
+\begin{equation}
+\frac{\partial\mathcal{L}}{\partial W^{[1]}_{jk}}
+=\underbrace{(\hat{y}-y)}_{\delta^{[3]}}
+\sum_{i=1}^{2}
+\underbrace{W^{[3]}_{1i}}_{\partial z^{[3]}/\partial a^{[2]}_i}
+\underbrace{\mathbf{1}[z^{[2]}_i>0]}_{\mathrm{ReLU}'}
+\underbrace{W^{[2]}_{ij}}_{\partial z^{[2]}_i/\partial a^{[1]}_j}
+\underbrace{\mathbf{1}[z^{[1]}_j>0]}_{\mathrm{ReLU}'}
+\underbrace{x_k}_{\partial z^{[1]}_j/\partial W^{[1]}_{jk}} .
+\end{equation}
+The gradient-descent update with learning rate $\eta$ is then
+\begin{equation}
+W^{[1]}\leftarrow W^{[1]}-\eta\,\boldsymbol{\delta}^{[1]}\mathbf{x}^\top,
+\qquad
+\mathbf{b}^{[1]}\leftarrow \mathbf{b}^{[1]}-\eta\,\boldsymbol{\delta}^{[1]} .
+\end{equation}
+The same recipe applied one and two layers higher gives the remaining updates,
+$\partial\mathcal{L}/\partial W^{[2]}=\boldsymbol{\delta}^{[2]}\mathbf{a}^{[1]\top}$,
+$\partial\mathcal{L}/\partial b^{[2]}=\boldsymbol{\delta}^{[2]}$,
+$\partial\mathcal{L}/\partial W^{[3]}=\delta^{[3]}\mathbf{a}^{[2]\top}$ and
+$\partial\mathcal{L}/\partial b^{[3]}=\delta^{[3]}$: every layer reuses the same
+$\delta$ and differs only in the local factor it multiplies by.
+
+\paragraph{Remark.} The weight and bias gradients of a layer share the identical upstream
+error $\boldsymbol{\delta}$; they differ \emph{only} in the local derivative of the
+pre-activation, $x_k$ versus $1$. Consequently
+$\partial\mathcal{L}/\partial W^{[1]}_{jk}=x_k\cdot\partial\mathcal{L}/\partial b^{[1]}_j$,
+which is why the two coincide whenever an input equals $1$.
 
 \subsection{A single numerical update}
 I use $\mathbf{x}=[1,-1]^\top$, $y=2$, $\eta=0.1$, and
@@ -145,39 +210,113 @@ weights, but the second hidden layer has only two neurons (and $\mathbf{b}^{[2]}
 $W^{[3]}=[0.4,-0.1]$ and treat the extra value as a typo. A NumPy computation and a
 TensorFlow automatic-differentiation check in the notebook both confirm the numbers below.
 
-\paragraph{Forward pass.}
-\begin{align*}
-\mathbf{z}^{[1]}&=[0.3,\,-0.25,\,-0.4]^\top, & \mathbf{a}^{[1]}&=[0.3,\,0,\,0]^\top,\\
-\mathbf{z}^{[2]}&=[0.03,\,0.003]^\top, & \mathbf{a}^{[2]}&=[0.03,\,0.003]^\top,\\
-\hat{y}&=0.0117, & \mathcal{L}&=\tfrac12(2-0.0117)^2=1.9767 .
-\end{align*}
-
-\paragraph{Backward pass.} With $\delta^{[3]}=-(2-0.0117)=-1.9883$,
+\paragraph{(i) Forward pass.} Layer 1:
 \[
-\boldsymbol{\delta}^{[2]}=[-0.79532,\ 0.19883]^\top,\qquad
-\boldsymbol{\delta}^{[1]}=[-0.07754,\ 0,\ 0]^\top ,
+\mathbf{z}^{[1]}=W^{[1]}\mathbf{x}+\mathbf{b}^{[1]}
+=\begin{bmatrix}0.1(1)+(-0.2)(-1)\\0.05(1)+0.3(-1)\\-0.3(1)+0.1(-1)\end{bmatrix}
+=\begin{bmatrix}0.3\\-0.25\\-0.4\end{bmatrix},
+\qquad
+\mathbf{a}^{[1]}=\mathrm{ReLU}(\mathbf{z}^{[1]})=\begin{bmatrix}0.3\\0\\0\end{bmatrix},
 \]
-because only the first pre-activation of each hidden layer is positive. The first-layer
-gradient and its update are
+so units 2 and 3 are switched off. Layer 2 (only the first column of $W^{[2]}$ matters,
+since $a^{[1]}_2=a^{[1]}_3=0$):
+\[
+\mathbf{z}^{[2]}=W^{[2]}\mathbf{a}^{[1]}+\mathbf{b}^{[2]}
+=\begin{bmatrix}0.1(0.3)\\0.01(0.3)\end{bmatrix}
+=\begin{bmatrix}0.03\\0.003\end{bmatrix},
+\qquad
+\mathbf{a}^{[2]}=\begin{bmatrix}0.03\\0.003\end{bmatrix}\ \ (\text{both positive}).
+\]
+Output and loss:
+\[
+\hat{y}=W^{[3]}\mathbf{a}^{[2]}+b^{[3]}=0.4(0.03)+(-0.1)(0.003)=0.012-0.0003=\boxed{0.0117},
+\]
+\[
+\mathcal{L}=\tfrac12(y-\hat{y})^2=\tfrac12(2-0.0117)^2=\tfrac12(1.9883)^2=\boxed{1.97667}.
+\]
+
+\paragraph{(ii) Backward pass.} Output error:
+\[
+\delta^{[3]}=\hat{y}-y=0.0117-2=\boxed{-1.98830}.
+\]
+Second hidden layer --- both $z^{[2]}_i>0$, so both ReLU gates pass:
+\[
+\delta^{[2]}_1=\delta^{[3]}W^{[3]}_{11}\cdot 1=(-1.9883)(0.4)=-0.79532,
+\qquad
+\delta^{[2]}_2=(-1.9883)(-0.1)=0.19883 .
+\]
+First hidden layer --- the gate $\mathbf{1}[z^{[1]}_j>0]$ is $1$ only for $j=1$, so
+$\delta^{[1]}_2=\delta^{[1]}_3=0$ regardless of the incoming sum, and
+\[
+\delta^{[1]}_1=\big(\delta^{[2]}_1 W^{[2]}_{11}+\delta^{[2]}_2 W^{[2]}_{21}\big)\cdot 1
+=(-0.79532)(0.1)+(0.19883)(0.01)
+=-0.079532+0.0019883=\boxed{-0.077544}.
+\]
+Hence $\boldsymbol{\delta}^{[1]}=[-0.077544,\,0,\,0]^\top$ and the first-layer gradient is
+the outer product with $\mathbf{x}=[1,-1]^\top$:
 \[
 \frac{\partial\mathcal{L}}{\partial W^{[1]}}
 =\boldsymbol{\delta}^{[1]}\mathbf{x}^\top
-=\begin{bmatrix}-0.07754&0.07754\\0&0\\0&0\end{bmatrix},
+=\begin{bmatrix}-0.077544&\ \ 0.077544\\0&0\\0&0\end{bmatrix},
 \qquad
-W^{[1]}_{\text{new}}=\begin{bmatrix}0.10775&-0.20775\\0.05&0.3\\-0.3&0.1\end{bmatrix}.
+\frac{\partial\mathcal{L}}{\partial \mathbf{b}^{[1]}}
+=\begin{bmatrix}-0.077544\\0\\0\end{bmatrix}.
 \]
-For completeness, the other updated parameters are
+
+\paragraph{(iii) Weight update, $\eta=0.1$.} For the first layer,
+$W^{[1]}\leftarrow W^{[1]}-0.1\,\boldsymbol{\delta}^{[1]}\mathbf{x}^\top$ changes only the
+first row:
 \[
-W^{[3]}_{\text{new}}=[0.40596,\,-0.09940],\quad b^{[3]}_{\text{new}}=0.19883,\quad
-\mathbf{b}^{[2]}_{\text{new}}=[0.07953,\,-0.01988]^\top,
+W^{[1]}_{11}=0.1-0.1(-0.077544)=0.107754,\qquad
+W^{[1]}_{12}=-0.2-0.1(0.077544)=-0.207754,
 \]
 \[
-W^{[2]}_{\text{new}}=\begin{bmatrix}0.12386&0.2&-0.4\\0.00404&-0.3&0.2\end{bmatrix},
+W^{[1]}_{\text{new}}=\begin{bmatrix}
+\ \ 0.107754&-0.207754\\ \ \ 0.05&\ \ 0.3\\ -0.3&\ \ 0.1\end{bmatrix},
 \qquad
-\mathbf{b}^{[1]}_{\text{new}}=[0.00775,\,0,\,0]^\top .
+\mathbf{b}^{[1]}_{\text{new}}=[0.0077544,\,0,\,0]^\top .
 \]
-Only weights connected to active (non-zero) ReLU units receive an update, which is a direct
-consequence of the $\mathrm{ReLU}'$ gate in the backward pass.
+Applying the same rule to the remaining layers, the gradients are the outer products of each
+layer's error with the activations that fed it:
+\[
+\frac{\partial\mathcal{L}}{\partial W^{[2]}}
+=\boldsymbol{\delta}^{[2]}\mathbf{a}^{[1]\top}
+=\begin{bmatrix}-0.79532\\ \ \ 0.19883\end{bmatrix}
+ \begin{bmatrix}0.3&0&0\end{bmatrix}
+=\begin{bmatrix}-0.238596&0&0\\ \ \ 0.059649&0&0\end{bmatrix},
+\qquad
+\frac{\partial\mathcal{L}}{\partial \mathbf{b}^{[2]}}
+=\boldsymbol{\delta}^{[2]}=\begin{bmatrix}-0.79532\\ \ \ 0.19883\end{bmatrix},
+\]
+\[
+\frac{\partial\mathcal{L}}{\partial W^{[3]}}
+=\delta^{[3]}\mathbf{a}^{[2]\top}
+=(-1.9883)\begin{bmatrix}0.03&0.003\end{bmatrix}
+=\begin{bmatrix}-0.059649&-0.0059649\end{bmatrix},
+\qquad
+\frac{\partial\mathcal{L}}{\partial b^{[3]}}=\delta^{[3]}=-1.98830 .
+\]
+Columns 2 and 3 of $\partial\mathcal{L}/\partial W^{[2]}$ vanish because
+$a^{[1]}_2=a^{[1]}_3=0$. Subtracting $\eta$ times each gradient gives
+\[
+W^{[2]}_{\text{new}}=\begin{bmatrix}0.123860&\ \ 0.2&-0.4\\0.004035&-0.3&\ \ 0.2\end{bmatrix},
+\qquad
+\mathbf{b}^{[2]}_{\text{new}}=[0.079532,\,-0.019883]^\top,
+\]
+\[
+W^{[3]}_{\text{new}}=[0.405965,\,-0.099404],
+\qquad
+b^{[3]}_{\text{new}}=0-0.1(-1.9883)=0.198830 .
+\]
+
+\paragraph{Remark on the ReLU gate.} Only parameters attached to units that were active on
+this example move: rows 2 and 3 of $W^{[1]}$ and columns 2 and 3 of $W^{[2]}$ are unchanged,
+because their gradients are multiplied by $\mathrm{ReLU}'(z)=0$. This is the sparse-gradient
+behaviour of ReLU, and it is also the mechanism behind ``dying'' units --- a neuron whose
+pre-activation is negative for every input receives zero gradient forever. Note also that the
+biases move much more than the weights here ($b^{[3]}$ by $0.199$ versus $0.006$ for
+$W^{[3]}_{11}$), because the activations $a^{[2]}\approx 10^{-2}$ that scale the weight
+gradients are tiny while the bias gradient is the raw error.
 
 % ================================================================= PART 2
 \section{Regularization for Deep Learning}
@@ -293,6 +432,18 @@ m_t=\beta_1 m_{t-1}+(1-\beta_1)g_t,\qquad v_t=\beta_2 v_{t-1}+(1-\beta_2)g_t^2,
 \]
 Adam adapts a per-parameter step size, combining momentum with an RMS normalisation.
 \end{itemize}
+
+In short, the three rules differ in how much history they keep. Plain SGD is memoryless: it
+takes a fixed step $\eta$ along the current gradient, which is cheap and well understood but
+zig-zags in narrow valleys and needs a carefully tuned learning rate. Momentum keeps one
+running average of past gradients, so consistent directions accumulate speed while
+oscillating components cancel; it usually converges in fewer epochs than SGD at essentially
+the same cost per step. Adam keeps two averages -- of the gradient and of its square -- and
+divides by the second, so every parameter gets its own effective learning rate; this makes it
+robust to poor scaling and to sparse gradients, and it typically drops the loss fastest in the
+first epochs, at the price of two extra state tensors per parameter and a slight tendency to
+generalise a little worse than well-tuned SGD with momentum. The MNIST experiment below shows
+exactly this trade-off.
 
 \subsection{Vanishing gradients}
 In a deep network the gradient of an early layer is a product of many Jacobians. With
