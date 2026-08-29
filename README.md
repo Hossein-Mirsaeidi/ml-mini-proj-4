@@ -3,7 +3,7 @@
 A single notebook covering five deep-learning topics with TensorFlow/Keras:
 
 1. **Deep feedforward networks & backpropagation** — forward/backward equations for a
-   2→3→2→1 network, plus a NumPy verification of one hand-computed update step.
+   2→3→2→1 network.
 2. **Regularization** — an MLP regressor on a synthetic cubic function, comparing
    *early stopping* vs *dropout* (training time and test MSE).
 3. **Optimization** — a 3-layer MLP on MNIST comparing *SGD (momentum)* vs *Adam*.
@@ -17,7 +17,7 @@ A single notebook covering five deep-learning topics with TensorFlow/Keras:
 - `Regularization_Optimization_CNN_LSTM_Embeddings.ipynb` — main notebook (code, outputs, markdown).
 - `figures/` — every plot exported as a vector PDF.
 - `data/cbow_corpus.txt` — the ~1000-word text used for the CBOW model (Part 5).
-- `Doc/report.tex` / `Doc/report.pdf` — the typeset report.
+- `report.pdf` — handwritten report.
 - `video_link.txt` — link to the video presentation.
 
 ## Setup
